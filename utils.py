@@ -7,6 +7,10 @@ from typing import List, Optional, Tuple
 import psutil
 from rich.markdown import Markdown
 
+from llms import run_cohere, prompts
+
+API_KEY = os.getenv('COHERE_API_KEY')
+
 MAX_CHARS = 10000
 MAX_COMMANDS = 3
 SHELLS = ['bash', 'powershell', 'zsh']
@@ -20,7 +24,7 @@ def count_chars(text: str) -> int:
 def truncate_chars(text: str, reverse=False):
     return text[-MAX_CHARS:] if reverse else text[:MAX_CHARS]
 
-def get_shell(shell_path):
+def get_shell_name(shell_path):
     if not shell_path:
         return None
     if os.path.splitext(shell_path)[-1].lower() in SHELLS:
@@ -32,7 +36,7 @@ def get_shell(shell_path):
     
 def get_shell_name_and_path():
     path = os.environ.get("SHELL", None) or os.environ.get("TF_SHELL", None)
-    if shell_name := get_shell(path):
+    if shell_name := get_shell_name(path):
         return shell_name, path
     
     proc = psutil.Process(os.getpid())
@@ -43,7 +47,7 @@ def get_shell_name_and_path():
         except TypeError:
             _path = proc.name
         
-        if shell_name := get_shell(_path):
+        if shell_name := get_shell_name(_path):
             return shell_name, path
 
         try:
@@ -176,6 +180,52 @@ def format_output(output):
         inline_code_lexer='python'
     )
 
+def get_shell():
+    name, path = get_shell_name_and_path()
+    prompt = get_shell_prompt(name, path)
+    return Shell(path, name, prompt)
+
+def get_terminal_context(shell):
+    pane_output = get_pane_output()
+    if not pane_output:
+        return "<terminal_history> No Terminal History Found. </terminal_history>"
+    
+    if not shell.prompt:
+        pane_output = truncate_pane_output(pane_output)
+        context = f'<terminal_history> {pane_output} </terminal_history>'
+    else:
+        commands = get_commands(pane_output, shell)
+        commands = truncate_commands(commands)
+        commands = list(reversed(commands))
+
+        previous_commands = commands[:-1]
+        last_command = commands[-1]
+
+        context = "<terminal_history>"
+        context += "<previous_commands>\n"
+        context += "\n".join(
+            command_to_string(c, shell.prompt) for c in previous_commands
+        )
+        context += "\n</previous_commands>\n"
+        context += "\n<last_command>\n"
+        context += command_to_string(last_command, shell.prompt)
+        context += "\n</last_command>"
+        context += "\n</terminal_history>"
+
+    return context
+
+def build_query(context, query):
+    if not (query and query.strip()):
+        query = "Explain the last command's output. Use the previous commands as context, if relevant, but focus on the last command."
+    return f'{context}\n\n{query}'
+
+
+def explain(context, query):
+    system_message = prompts.EXPLAIN_PROMPT if not query else prompts.ANSWER_PROMPT
+    user_message = build_query(context, query)
+    output = run_cohere(API_KEY, system_message, user_message)
+    return format_output(output)
+    
 
 
 
