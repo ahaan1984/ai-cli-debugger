@@ -37,6 +37,7 @@ def get_shell_name_and_path():
     
     proc = psutil.Process(os.getpid())
     while proc is not None and proc.pid > 0:
+
         try:
             _path = proc.name()
         except TypeError:
@@ -54,6 +55,7 @@ def get_shell_name_and_path():
 
 def get_shell_prompt(shell_name, shell_path):
     shell_prompt = None
+
     try: 
         if shell_name == 'zsh':
             cmd = [
@@ -62,12 +64,12 @@ def get_shell_prompt(shell_name, shell_path):
             shell_prompt = check_output(cmd, text=True)
         elif shell_name == 'bash':
             cmd = [
-                shell_path, "echo", "${PS1@P}"
+                shell_path, 'echo', '${PS1@P}'
             ]
             shell_prompt = check_output(cmd, text=True)
         elif shell_name == 'powershell':
             cmd = [
-                shell_path, "-c", "Write-Host $prompt"
+                shell_path, '-c', 'Write-Host $prompt'
             ]
             shell_prompt = check_output(cmd, text=True)
     except:
@@ -75,12 +77,105 @@ def get_shell_prompt(shell_name, shell_path):
 
     return shell_prompt.strip() if shell_prompt else None
 
-# def get_pane_output():
-#     output_file = None
-#     output = ''
-#     try:
-#         with tempfile.NamedTemporaryFile(delete=False) as output_file:
-#             output_file = tempfile.name
+def get_pane_output():
+    output_file = None
+    output = ''
 
-#             if os.getenv("TMUX"):
+    try:
+        with tempfile.NamedTemporaryFile(delete=False) as output_file:
+            output_file = tempfile.name
+
+            if os.getenv("TMUX"):
+                cmd = [
+                    'tmux', 'capture_pane', '-p', '-s', '-'
+                ]
+                with open(output_file, 'w') as f:
+                    run(cmd, stdout=f, text=True)
+            elif os.getenv("STY"):
+                cmd = [
+                    'screen', '-X', 'hardcopy', '-h', output_file
+                ]
+                check_output(cmd, text=True)
+            else:
+                return ""
+            
+    except CalledProcessError as e:
+        pass
+
+    if output_file:
+        os.remove(output_file)
+
+    return output
+
+def get_commands(pane_output:str, shell:Shell):
+    commands = [] # order: newest to oldest
+    buffer = []
+
+    for line in reversed(pane_output.splitline()):
+        if not line.strip():
+            continue
+
+        if shell.prompt.lower() in line.lower():
+            command_text = line.split(shell.prompt, 1)[1].strip()
+            command = Command(command_text, '\n'.join(reversed(buffer)).strip())
+            commands.append(command)
+            buffer = []
+            continue
+
+        buffer.append(line)
+
+    return commands[1:]
+
+def truncate_commands(commands):
+    num_chars = 0
+    truncated_cmd = []
+    for command in commands:
+        command_chars = count_chars(command.text)
+        if command_chars + num_chars > MAX_CHARS:
+            break
+        num_chars += command_chars
+
+        output = []
+        for line in reversed(command.output.splitlines()):
+            if count_chars('\n'.join(output)) + count_chars(line) > MAX_CHARS:
+                break
+            output.append(line)
+            num_chars += count_chars(line)
+
+        output = '\n'.join(reversed(output))
+        command = Command(command.text, output)
+        truncated_cmd.append(command)
+
+    return truncated_cmd
+
+def truncate_pane_output(output):
+    hit_non_empty_line = False
+    lines = []
+    for line in reversed(output.splitlines()):
+        if line and line.strip():
+            hit_non_empty_line = True
+
+        if hit_non_empty_line:
+            lines.append(line)
+
+    lines = lines[1:]
+    output = '\n'.join(reversed(lines))
+    output = truncate_chars(output, reverse=True)
+    
+    return output.strip()
+
+def command_to_string(command, shell_prompt):
+    shell_prompt = shell_prompt if shell_prompt else '$'
+    command_str = f'{shell_prompt} {command.text}'
+    command_str += f'\n{command.output}' if command.output.strip() else ''
+    return command_str
+
+def format_output(output):
+    return Markdown(
+        output, 
+        inline_code_lexer='python'
+    )
+
+
+
 
