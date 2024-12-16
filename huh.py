@@ -19,13 +19,14 @@ def main():
     console = Console()
     debug = lambda text: console.print(f'huh | {text}') if args.debug else None
 
-    if not os.environ.get("TMUX") and not os.environ.get("STY"):
-        console.print("huh | This script must be run inside a tmux session.")
-        return
+    # if not os.environ.get("TMUX") and not os.environ.get("STY"):
+    #     console.print("huh | This script must be run inside a tmux session.")
+    #     return
     
-    if not os.environ.get("COHERE_API_KET", None):
-        console.print("huh | Please set the COHERE_API_KEY environment variable.")
-        return
+    # if not os.getenv("COHERE_API_KEY", None):
+    #     console.print("huh | Please set the COHERE_API_KEY environment variable.")
+    #     print(os.getenv("COHERE_API_KEY"))
+    #     return
     
     with console.status("huh | Getting terminal context..."):
         shell = get_shell()

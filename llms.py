@@ -1,25 +1,7 @@
 from enum import Enum
 import cohere
 
-def run_cohere(api_key):
-    co = cohere.ClientV2(api_key)
-    res = co.chat(
-        model='command-r-plus-08-2024',
-        messages = [
-            {
-                'role':'system',
-                'content': prompts.EXPLAIN_PROMPT   
-             },
-             {
-                 'role':'user',
-                 'content': prompts.ANSWER_PROMPT
-             }
-        ]
-    )
-
-    return res.message.content[0].text
-
-prompts = Enum(
+class Prompts(Enum):
     EXPLAIN_PROMPT = """<assistant>
 You are a command-line assistant whose job is to explain the output of the most recently executed command in the terminal.
 Your goal is to help users understand (and potentially fix) things like stack traces, error messages, logs, or any other confusing output from the terminal.
@@ -40,9 +22,9 @@ Your goal is to help users understand (and potentially fix) things like stack tr
 - Only use bold for warnings or key takeaways.
 - Break down your response into digestible parts.
 - Keep your response as short as possible. No more than 5 sentences, unless the issue is complex.
-</formatting>""",
+</formatting>"""
 
-ANSWER_PROMPT = """<assistant>
+    ANSWER_PROMPT = """<assistant>
 You are a command-line assistant whose job is to answer the user's question about the most recently executed command in the terminal.
 </assistant>
 
@@ -58,5 +40,27 @@ You are a command-line assistant whose job is to answer the user's question abou
 - Only use bold for warnings or key takeaways.
 - Break down your response into digestible parts.
 - Keep your response as short as possible. No more than 5 sentences, unless the issue is complex.
-</formatting>""")
+</formatting>"""
+
+API_KEY = 'TyAeU9hQmtTHxRBqSTAXmyFB7WODWAfTjofE8di3'
+
+def run_cohere(system_prompt, user_message):
+    co = cohere.ClientV2(api_key=API_KEY)
+    res = co.chat(
+        model='command-r-plus-08-2024',
+        messages = [
+            {
+                'role':'system',
+                'content': system_prompt   
+             },
+             {
+                 'role':'user',
+                 'content': user_message
+             }
+        ]
+    )
+
+    return res.message.content[0].text
+
+
 

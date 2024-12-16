@@ -7,9 +7,9 @@ from typing import List, Optional, Tuple
 import psutil
 from rich.markdown import Markdown
 
-from llms import run_cohere, prompts
+from llms import run_cohere, Prompts
 
-API_KEY = os.getenv('COHERE_API_KEY')
+# API_KEY = 'TyAeU9hQmtTHxRBqSTAXmyFB7WODWAfTjofE8di3'
 
 MAX_CHARS = 10000
 MAX_COMMANDS = 3
@@ -85,25 +85,38 @@ def get_pane_output():
     output_file = None
     output = ''
 
-    try:
-        with tempfile.NamedTemporaryFile(delete=False) as output_file:
-            output_file = tempfile.name
+    # try:
+    #     with tempfile.NamedTemporaryFile(delete=False) as output_file:
+    #         output_file = tempfile.name
 
-            if os.getenv("TMUX"):
-                cmd = [
-                    'tmux', 'capture_pane', '-p', '-s', '-'
-                ]
-                with open(output_file, 'w') as f:
-                    run(cmd, stdout=f, text=True)
-            elif os.getenv("STY"):
-                cmd = [
-                    'screen', '-X', 'hardcopy', '-h', output_file
-                ]
-                check_output(cmd, text=True)
-            else:
-                return ""
+    #         if os.getenv("TMUX"):
+    #             cmd = [
+    #                 'tmux', 'capture_pane', '-p', '-s', '-'
+    #             ]
+    #             with open(output_file, 'w') as f:
+    #                 run(cmd, stdout=f, text=True)
+    #         elif os.getenv("STY"):
+    #             cmd = [
+    #                 'screen', '-X', 'hardcopy', '-h', output_file
+    #             ]
+    #             check_output(cmd, text=True)
+    #         else:
+    #             return ""
+
+    try:
+        if os.name == 'nt':
+            try:
+                history_output = check_output(['powershell', '-Command', 'Get-History | Select-Object -ExpandProperty CommandLine'], text=True)
+                return history_output
+            except:
+                # Fallback method
+                history_output = check_output(['powershell', '-Command', '$host.UI.RawUI.History.GetCommands() | ForEach-Object {$_.CommandLine}'], text=True)
+                return history_output
             
-    except CalledProcessError as e:
+    # except CalledProcessError as e:
+    #     pass
+
+    except:
         pass
 
     if output_file:
@@ -221,9 +234,9 @@ def build_query(context, query):
 
 
 def explain(context, query):
-    system_message = prompts.EXPLAIN_PROMPT if not query else prompts.ANSWER_PROMPT
+    system_message = Prompts.EXPLAIN_PROMPT.value if not query else Prompts.ANSWER_PROMPT.value
     user_message = build_query(context, query)
-    output = run_cohere(API_KEY, system_message, user_message)
+    output = run_cohere(system_message, user_message)
     return format_output(output)
     
 
