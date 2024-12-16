@@ -9,7 +9,7 @@ from rich.markdown import Markdown
 
 MAX_CHARS = 10000
 MAX_COMMANDS = 3
-SHELLS = ['bash', 'powershell', 'zsh', 'cmd', 'sh', 'csh']
+SHELLS = ['bash', 'powershell', 'zsh']
 
 Shell = namedtuple("Shell", ['path', 'name', 'prompt'])
 Command = namedtuple("Command", ['text', 'output'])
@@ -51,4 +51,36 @@ def get_shell_name_and_path():
             proc = proc.parent
 
     return None, path
+
+def get_shell_prompt(shell_name, shell_path):
+    shell_prompt = None
+    try: 
+        if shell_name == 'zsh':
+            cmd = [
+                shell_path, '-i', '-c', 'echo $PROMPT'
+            ]
+            shell_prompt = check_output(cmd, text=True)
+        elif shell_name == 'bash':
+            cmd = [
+                shell_path, "echo", "${PS1@P}"
+            ]
+            shell_prompt = check_output(cmd, text=True)
+        elif shell_name == 'powershell':
+            cmd = [
+                shell_path, "-c", "Write-Host $prompt"
+            ]
+            shell_prompt = check_output(cmd, text=True)
+    except:
+        pass
+
+    return shell_prompt.strip() if shell_prompt else None
+
+# def get_pane_output():
+#     output_file = None
+#     output = ''
+#     try:
+#         with tempfile.NamedTemporaryFile(delete=False) as output_file:
+#             output_file = tempfile.name
+
+#             if os.getenv("TMUX"):
 
