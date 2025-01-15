@@ -9,8 +9,6 @@ from rich.markdown import Markdown
 
 from llms import run_cohere, Prompts
 
-# API_KEY = 'TyAeU9hQmtTHxRBqSTAXmyFB7WODWAfTjofE8di3'
-
 MAX_CHARS = 10000
 MAX_COMMANDS = 3
 SHELLS = ['bash', 'powershell', 'zsh']
@@ -82,53 +80,66 @@ def get_shell_prompt(shell_name, shell_path):
     return shell_prompt.strip() if shell_prompt else None
 
 def get_pane_output():
-    output_file = None
-    output = ''
-
-    # try:
-    #     with tempfile.NamedTemporaryFile(delete=False) as output_file:
-    #         output_file = tempfile.name
-
-    #         if os.getenv("TMUX"):
-    #             cmd = [
-    #                 'tmux', 'capture_pane', '-p', '-s', '-'
-    #             ]
-    #             with open(output_file, 'w') as f:
-    #                 run(cmd, stdout=f, text=True)
-    #         elif os.getenv("STY"):
-    #             cmd = [
-    #                 'screen', '-X', 'hardcopy', '-h', output_file
-    #             ]
-    #             check_output(cmd, text=True)
-    #         else:
-    #             return ""
+    output = ""
+    debug_logs = []
 
     try:
-        if os.name == 'nt':
+        # Debug: Check which shell is detected
+        if os.getenv("TMUX"):
+            debug_logs.append("Detected TMUX environment.")
+            cmd = ['tmux', 'capture-pane', '-p']
+            output = check_output(cmd, text=True)
+        elif os.getenv("STY"):
+            debug_logs.append("Detected screen environment.")
+            with tempfile.NamedTemporaryFile(delete=False) as temp_file:
+                temp_file.close()
+                cmd = ['screen', '-X', 'hardcopy', temp_file.name]
+                run(cmd, check=True)
+                with open(temp_file.name, 'r') as file:
+                    output = file.read()
+                os.remove(temp_file.name)
+        elif os.name == 'nt':  # PowerShell
+            debug_logs.append("Detected Windows PowerShell environment.")
             try:
-                history_output = check_output(['powershell', '-Command', 'Get-History | Select-Object -ExpandProperty CommandLine'], text=True)
-                return history_output
-            except:
-                # Fallback method
-                history_output = check_output(['powershell', '-Command', '$host.UI.RawUI.History.GetCommands() | ForEach-Object {$_.CommandLine}'], text=True)
-                return history_output
-            
-    # except CalledProcessError as e:
-    #     pass
+                debug_logs.append("Attempting PowerShell Get-History command.")
+                cmd = ['powershell', '-Command', 'Get-History | Select-Object -ExpandProperty CommandLine']
+                output = check_output(cmd, text=True)
+            except CalledProcessError as e:
+                debug_logs.append(f"Primary PowerShell command failed: {e}")
+                debug_logs.append("Attempting fallback PowerShell history command.")
+                try:
+                    cmd = ['powershell', '-Command', '$host.UI.RawUI.History.GetCommands() | ForEach-Object {$_.CommandLine}']
+                    output = check_output(cmd, text=True)
+                except CalledProcessError as fallback_error:
+                    debug_logs.append(f"Fallback PowerShell command failed: {fallback_error}")
+        else:
+            debug_logs.append("Fallback to normal shell environment.")
+            history_file = os.path.expanduser('~/.bash_history')
+            if os.path.exists(history_file):
+                with open(history_file, 'r') as file:
+                    output = file.read()
+            else:
+                output = "No history file found or unsupported shell."
 
-    except:
-        pass
+    except CalledProcessError as e:
+        debug_logs.append(f"Subprocess error: {e}")
+        output = f"Error capturing pane output: {e}"
+    except Exception as e:
+        debug_logs.append(f"Unexpected error: {e}")
+        output = f"Unexpected error: {e}"
 
-    if output_file:
-        os.remove(output_file)
+    # Print debug logs for troubleshooting
+    if debug_logs:
+        print("\n".join(debug_logs))
 
-    return output
+    return output.strip()
+
 
 def get_commands(pane_output:str, shell:Shell):
     commands = [] # order: newest to oldest
     buffer = []
 
-    for line in reversed(pane_output.splitline()):
+    for line in reversed(pane_output.splitlines()):
         if not line.strip():
             continue
 
@@ -234,7 +245,7 @@ def build_query(context, query):
 
 
 def explain(context, query):
-    system_message = Prompts.EXPLAIN_PROMPT.value if not query else Prompts.ANSWER_PROMPT.value
+    system_message = Prompts.EXPLAIN_PROMPT.value if not query else Prompts.ANSWER_PROMPT
     user_message = build_query(context, query)
     output = run_cohere(system_message, user_message)
     return format_output(output)

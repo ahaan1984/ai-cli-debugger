@@ -1,5 +1,6 @@
 from enum import Enum
 import cohere
+import os
 
 class Prompts(Enum):
     EXPLAIN_PROMPT = """<assistant>
@@ -42,7 +43,7 @@ You are a command-line assistant whose job is to answer the user's question abou
 - Keep your response as short as possible. No more than 5 sentences, unless the issue is complex.
 </formatting>"""
 
-API_KEY = 'TyAeU9hQmtTHxRBqSTAXmyFB7WODWAfTjofE8di3'
+API_KEY = os.getenv("COHERE_API_KEY")
 
 def run_cohere(system_prompt, user_message):
     co = cohere.ClientV2(api_key=API_KEY)

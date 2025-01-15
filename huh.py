@@ -1,5 +1,8 @@
 import os
 import argparse
+from dotenv import load_dotenv
+
+load_dotenv()
 
 from rich.console import Console
 
@@ -13,20 +16,23 @@ def main():
         "--query", type=str, required=False, default=None, help="A question about what's on your terminal." 
     )
     parser.add_argument(
+        "--command", type=str, required=False, default=None, help="A command to run on the terminal."
+    )
+    parser.add_argument(
         "--debug", action="store_true", help="Print debug information."
     )
     args = parser.parse_args()
     console = Console()
     debug = lambda text: console.print(f'huh | {text}') if args.debug else None
 
-    # if not os.environ.get("TMUX") and not os.environ.get("STY"):
-    #     console.print("huh | This script must be run inside a tmux session.")
-    #     return
+    if not os.environ.get("TMUX") and not os.environ.get("STY"):
+        console.print("huh | This script must be run inside a tmux session.")
+        return
     
-    # if not os.getenv("COHERE_API_KEY", None):
-    #     console.print("huh | Please set the COHERE_API_KEY environment variable.")
-    #     print(os.getenv("COHERE_API_KEY"))
-    #     return
+    if not os.getenv("COHERE_API_KEY", None):
+        console.print("huh | Please set the COHERE_API_KEY environment variable.")
+        print(os.getenv("COHERE_API_KEY"))
+        return
     
     with console.status("huh | Getting terminal context..."):
         shell = get_shell()
@@ -36,6 +42,11 @@ def main():
         debug(f'Retrieved Terminal Context: \n{context}')
         debug('Sending request to LLM....')
 
+    if args.query:
         response = explain(context, args.query)
+    elif args.command:
+        response = explain(context, args.command)
+    else:
+        response = explain(context, None)
 
     console.print(response)

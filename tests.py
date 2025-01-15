@@ -1,3 +1,4 @@
-from utils import API_KEY
+from utils import get_pane_output
 
-print(API_KEY)
+get_pane_output()
+
